@@ -12,41 +12,213 @@ window.onload = function() {
     // All loading functions will typically all be found inside "preload()".
     
     "use strict";
+
+var game = new Phaser.Game(800, 600, Phaser.AUTO, '', { preload: preload, create: create, update: update });
+
+function preload() {
+
+    game.load.image('sky', 'assets/sky.png');
+    game.load.image('ground', 'assets/platform.png');
+    game.load.image('star', 'assets/star.png');
+    game.load.spritesheet('dude', 'assets/dude.png', 64, 96);
+    game.load.image('bullet', 'assets/ball.png')
+    game.load.audio('brerb', 'assets/Untitled2.wav')
+    game.load.audio('brr', 'assets/brr.mp3')
+
+}
+
+var player;
+var platforms;
+var cursors;
+
+var stars;
+var score = 0;
+var scoreText;
+
+var bullets;
+var fireRate = 250;
+var nextFire = 0;
+var addSize = 0;
+var flexus = 0;
+
+var brer;
+var br;
+
+function create() {
+
+    //  We're going to be using physics, so enable the Arcade Physics system
+    game.physics.startSystem(Phaser.Physics.ARCADE);
+
+    //  A simple background for our game
+    game.add.sprite(0, 0, 'sky');
+
+    //  The platforms group contains the ground and the 2 ledges we can jump on
+    platforms = game.add.group();
+
+    //  We will enable physics for any object that is created in this group
+    platforms.enableBody = true;
+
+    // Here we create the ground.
+    var ground = platforms.create(0, game.world.height - 64, 'ground');
+
+    //  Scale it to fit the width of the game (the original sprite is 400x32 in size)
+    ground.scale.setTo(2, 2);
+
+    //  This stops it from falling away when you jump on it
+    ground.body.immovable = true;
+
+    //  Now let's create two ledges
+    var ledge = platforms.create(400, 400, 'ground');
+    ledge.body.immovable = true;
+
+    ledge = platforms.create(-150, 170, 'ground');
+    ledge.body.immovable = true;
+
+    // The player and its settings
+    player = game.add.sprite(128, game.world.height - 190, 'dude');
+
+    //  We need to enable physics on the player
+    game.physics.arcade.enable(player);
+
+    player.body.bounce.y = 0.2;
+    player.body.gravity.y = 2000;
+    player.body.collideWorldBounds = true;
+
+    player.animations.add('left', [0, 1, 2, 3], 20, true);
+    player.animations.add('right', [5, 6, 7, 8], 20, true);
+    player.animations.add('leftstatic', [3], 20, true);
+    player.animations.add('rightstatic', [5], 20, true);
+    player.animations.add('flex', [9, 4], 2, true);
+
+    stars = game.add.group();
+
+    stars.enableBody = true;
+
+    //  Here we'll create 12 of them evenly spaced apart
+    for (var i = 0; i < 12; i++)
+    {
+        var star = stars.create(i * 70, 0, 'star');
+
+        //  Let gravity do its thing
+        star.body.gravity.y = 3500;
+
+        //  This just gives each star a slightly random bounce value
+        star.body.bounce.y = 0.70 + (Math.random()*.3) ;
+    }
+
+    //  The score
+    scoreText = game.add.text(16, 16, 'gains: 0', { fontSize: '32px', fill: '#000' });
+
+    //  Our controls.
+    cursors = game.input.keyboard.createCursorKeys();
     
-    var game = new Phaser.Game( 800, 600, Phaser.AUTO, 'game', { preload: preload, create: create, update: update } );
+    //  bullet codes from "Shoot the pointer"
+    bullets = game.add.group();
+    bullets.enableBody = true;
+    bullets.physicsBodyType = Phaser.Physics.ARCADE;
+    bullets.body.gravity.y = 2000;
+
+    bullets.createMultiple(50, 'bullet');
+    bullets.setAll('checkWorldBounds', true);
+    bullets.setAll('outOfBoundsKill', true);
     
-    function preload() {
-        // Load an image and call it 'logo'.
-        game.load.image( 'logo', 'assets/phaser.png' );
+    brer = game.add.audio('brerb');
+    br = game.add.audio('brr');
+    
+}
+
+function update() {
+
+    //  Collide the player and the stars with the platforms
+    game.physics.arcade.collide(player, platforms);
+    game.physics.arcade.collide(stars, platforms);
+
+    //  Checks to see if the player overlaps with any of the stars, if he does call the collectStar function
+    game.physics.arcade.overlap(player, stars, collectStar, null, this);
+
+    //  Reset the players velocity (movement)
+    player.body.velocity.x = 0;
+
+    if (cursors.left.isDown)
+    {
+        //  Move to the left
+        player.body.velocity.x = -400 - flexus;
+        if (player.body.touching.down)
+        {
+            player.animations.play('left');
+        }
+        else
+        {
+            player.animations.play('leftstatic');
+        }
+    }
+    else if (cursors.right.isDown)
+    {
+        //  Move to the right
+        player.body.velocity.x = 400 + flexus;
+        if (player.body.touching.down)
+        {
+            player.animations.play('right');
+        }
+        else
+        {
+            player.animations.play('rightstatic');
+        }
+    }
+    else if (cursors.down.isDown && player.body.touching.down)
+    {
+        player.animations.play('flex');
+    }
+
+    else
+    {
+        //  Stand still
+        player.animations.stop();
+
+        player.frame = 4;
     }
     
-    var bouncy;
-    
-    function create() {
-        // Create a sprite at the center of the screen using the 'logo' image.
-        bouncy = game.add.sprite( game.world.centerX, game.world.centerY, 'logo' );
-        // Anchor the sprite at its center, as opposed to its top-left corner.
-        // so it will be truly centered.
-        bouncy.anchor.setTo( 0.5, 0.5 );
-        
-        // Turn on the arcade physics engine for this sprite.
-        game.physics.enable( bouncy, Phaser.Physics.ARCADE );
-        // Make it bounce off of the world bounds.
-        bouncy.body.collideWorldBounds = true;
-        
-        // Add some text using a CSS style.
-        // Center it in X, and position its top 15 pixels from the top of the world.
-        var style = { font: "25px Verdana", fill: "#9999ff", align: "center" };
-        var text = game.add.text( game.world.centerX, 15, "Build something awesome.", style );
-        text.anchor.setTo( 0.5, 0.0 );
+    //  Allow the player to jump if they are touching the ground.
+    if (cursors.up.isDown && player.body.touching.down)
+    {
+        player.body.velocity.y = -1000 -flexus;
     }
     
-    function update() {
-        // Accelerate the 'logo' sprite towards the cursor,
-        // accelerating at 500 pixels/second and moving no faster than 500 pixels/second
-        // in X or Y.
-        // This function returns the rotation angle that makes it visually match its
-        // new trajectory.
-        bouncy.rotation = game.physics.arcade.accelerateToPointer( bouncy, this.game.input.activePointer, 500, 500, 500 );
+    if (game.input.activePointer.isDown)
+    {
+        fire();
     }
+    
+
+}
+
+function collectStar (player, star) {
+    
+    // Removes the star from the screen
+    star.kill();
+    player.body.gravity.y += 200;
+    //  Add and update the score
+    score += 10;
+    scoreText.text = 'gains: ' + score;
+    addSize += .04;
+    player.scale.setTo(1 + addSize, 1 + addSize);
+
+}
+
+function fire() {
+    player.animations.play('flex');
+    flexus += 5
+    if (game.time.now > nextFire && bullets.countDead() > 0)
+    {
+        addSize += .03
+        player.scale.setTo(1 + addSize, 1 + addSize);
+        nextFire = game.time.now + fireRate;
+
+        var bullet = bullets.getFirstDead();
+
+        bullet.reset(player.x - 8, player.y - 8);
+
+        game.physics.arcade.moveToPointer(bullet, 300);
+    }
+}
 };
